@@ -1,5 +1,4 @@
 import { sql } from '@vercel/postgres';
-import { kv } from '@vercel/kv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import Redis from 'ioredis';
