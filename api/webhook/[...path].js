@@ -16,9 +16,10 @@ export default async function handler(req, res) {
   console.log('Query params:', req.query);
   console.log('Headers:', req.headers);
   
-  const { path } = req.query;
+  // Vercel passes the catch-all param as '...path' (literal dots in key name)
+  const path = req.query['...path'] || req.query.path;
 
-  if (!path || path.length === 0) {
+  if (!path || (Array.isArray(path) && path.length === 0)) {
     console.error('No path in query');
     return res.status(404).json({ error: 'Webhook path not found' });
   }
