@@ -1,4 +1,4 @@
-import { db, cache } from './_utils/db.js';
+import { db, cache } from '../_utils/db.js';
 import crypto from 'crypto';
 import { nanoid } from 'nanoid';
 
