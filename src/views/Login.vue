@@ -89,7 +89,8 @@ export default {
         } else {
           await api.register(username.value, password.value);
         }
-        router.push('/dashboard');
+        // Use window.location to ensure cookies are properly set
+        window.location.href = '/dashboard';
       } catch (err) {
         error.value = err.response?.data?.error || 'An error occurred';
       } finally {

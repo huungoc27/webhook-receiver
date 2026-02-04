@@ -27,7 +27,7 @@ export function authenticate(handler) {
 export function setCookie(res, name, value, options = {}) {
   const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: true, // Always true on Vercel (auto-HTTPS)
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 7, // 7 days
     path: '/',
