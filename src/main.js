@@ -16,11 +16,10 @@ const router = createRouter({
   routes
 });
 
-// Simple auth check (in production, verify with API)
+// Auth check with both cookie and localStorage
 router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth) {
-    // Check if user has session (simplified)
-    const hasAuth = document.cookie.includes('token=');
+    const hasAuth = document.cookie.includes('token=') || localStorage.getItem('isAuthenticated') === 'true';
     if (!hasAuth) {
       next('/login');
     } else {

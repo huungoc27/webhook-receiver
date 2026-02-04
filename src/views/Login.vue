@@ -89,11 +89,12 @@ export default {
         } else {
           await api.register(username.value, password.value);
         }
-        // Use window.location to ensure cookies are properly set
+        // Set auth flag in localStorage as backup
+        localStorage.setItem('isAuthenticated', 'true');
+        // Force full page reload to ensure cookies work
         window.location.href = '/dashboard';
       } catch (err) {
         error.value = err.response?.data?.error || 'An error occurred';
-      } finally {
         loading.value = false;
       }
     };

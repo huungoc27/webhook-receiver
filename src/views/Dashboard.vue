@@ -277,6 +277,7 @@ export default {
 
     const handleLogout = async () => {
       await api.logout();
+      localStorage.removeItem('isAuthenticated');
       router.push('/login');
     };
 
