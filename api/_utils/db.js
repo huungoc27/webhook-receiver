@@ -84,6 +84,14 @@ export const db = {
   }
 };
 
+const redis = process.env.REDIS_URL 
+  ? new Redis(process.env.REDIS_URL, {
+      maxRetriesPerRequest: 3,
+      enableReadyCheck: false,
+      family: 0, // Use IPv4 and IPv6
+    })
+  : null;
+
 export const cache = {
   async saveWebhookData(key, data) {
     if (!redis) throw new Error('Redis not configured');
