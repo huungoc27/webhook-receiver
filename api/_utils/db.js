@@ -2,6 +2,7 @@ import { sql } from '@vercel/postgres';
 import { kv } from '@vercel/kv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import Redis from 'ioredis';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -85,11 +86,14 @@ export const db = {
 
 export const cache = {
   async saveWebhookData(key, data) {
-    await kv.set(key, data, { ex: 60 * 60 * 24 * 7 }); // 7 days expiry
+    if (!redis) throw new Error('Redis not configured');
+    await redis.set(key, JSON.stringify(data), 'EX', 60 * 60 * 24 * 7); // 7 days
   },
 
   async getWebhookData(key) {
-    return await kv.get(key);
+    if (!redis) throw new Error('Redis not configured');
+    const data = await redis.get(key);
+    return data ? JSON.parse(data) : null;
   }
 };
 
