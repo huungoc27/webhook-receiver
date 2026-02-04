@@ -12,31 +12,48 @@ function verifyLineSignature(channelSecret, signature, body) {
 }
 
 export default async function handler(req, res) {
+  console.log('=== Webhook Request ===');
+  console.log('Query params:', req.query);
+  console.log('Headers:', req.headers);
+  
   const { path } = req.query;
 
   if (!path || path.length === 0) {
+    console.error('No path in query');
     return res.status(404).json({ error: 'Webhook path not found' });
   }
 
   const webhookPath = Array.isArray(path) ? path.join('/') : path;
+  console.log('Looking for webhook path:', webhookPath);
 
   try {
     // Find endpoint
+    console.log('Querying database for path:', webhookPath);
     const endpoint = await db.getEndpointByPath(webhookPath);
+    console.log('Database result:', endpoint);
 
     if (!endpoint) {
-      return res.status(404).json({ error: 'Webhook endpoint not found' });
+      console.error('Endpoint not found for path:', webhookPath);
+      return res.status(404).json({ 
+        error: 'Webhook endpoint not found',
+        path: webhookPath,
+        debug: 'Check if path exists in webhook_endpoints table'
+      });
     }
 
-    // Get raw body for signature verification
+    console.log('Found endpoint:', endpoint.id);
+
+    // Get LINE signature
     const signature = req.headers['x-line-signature'];
     
     if (!signature) {
+      console.error('Missing LINE signature header');
       return res.status(400).json({ error: 'Missing LINE signature' });
     }
 
-    // For Vercel, we need to reconstruct body as string
+    // Get raw body as string for signature verification
     const bodyString = JSON.stringify(req.body);
+    console.log('Body for signature:', bodyString);
     
     // Verify LINE signature
     const isValid = verifyLineSignature(
@@ -46,7 +63,19 @@ export default async function handler(req, res) {
     );
 
     if (!isValid) {
+      console.error('Invalid signature. Expected vs received:', {
+        body: bodyString,
+        signature: signature
+      });
       return res.status(401).json({ error: 'Invalid LINE signature' });
+    }
+
+    console.log('Signature verified successfully');
+
+    // Handle LINE webhook verification (empty events array)
+    if (req.body && req.body.events && req.body.events.length === 0) {
+      console.log('LINE verification request received for:', webhookPath);
+      return res.status(200).json({ message: 'Verification successful' });
     }
 
     // Store webhook data
@@ -60,13 +89,19 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     };
 
+    console.log('Saving webhook data with key:', logKey);
     await cache.saveWebhookData(logKey, webhookData);
     await db.saveWebhookLog(endpoint.id, req.method, logKey);
 
+    console.log('Webhook saved successfully');
     return res.status(200).json({ message: 'Webhook received' });
   } catch (error) {
-    console.error('Webhook error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Webhook error details:', error);
+    console.error('Error stack:', error.stack);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message 
+    });
   }
 }
 
