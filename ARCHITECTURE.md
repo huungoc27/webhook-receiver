@@ -1,6 +1,8 @@
-# Architecture Overview
 
-## High-Level Architecture
+# Webhook Receiver Architecture Overview
+
+
+## High-Level Architecture (2026)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -13,7 +15,8 @@
 │  │   Frontend   │        │                             │   │
 │  │   (Static)   │        │  • /api/login               │   │
 │  │              │        │  • /api/register            │   │
-│  └──────────────┘        │  • /api/endpoints           │   │
+│  └──────────────┘        │  • /api/logout              │   │
+│                          │  • /api/endpoints           │   │
 │                          │  • /api/webhook/[...path]   │   │
 │                          │  • /api/logs                │   │
 │                          └────────┬────────────────────┘   │
@@ -30,11 +33,10 @@
 │                                   │                        │
 │                          ┌────────▼────────┐               │
 │                          │                 │               │
-│                          │  Vercel KV      │               │
-│                          │  (Redis)        │               │
-│                          │                 │               │
-│                          │  Full webhook   │               │
-│                          │  request data   │               │
+│                          │                                 │
+│                          │   (All webhook logs now stored  │
+│                          │    in Postgres)                 │
+│                          │                                 │
 │                          └─────────────────┘               │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
@@ -51,11 +53,14 @@
               └─────────┘             └────────┘
 ```
 
-## Data Flow
+
+## Data Flow (2026)
+
 
 ### 1. User Authentication Flow
 
 ```
+
 User Browser → POST /api/login
               ↓
        Verify credentials (Postgres)
@@ -67,9 +72,11 @@ User Browser → POST /api/login
        Return user data
 ```
 
+
 ### 2. Create Webhook Endpoint Flow
 
 ```
+
 User Dashboard → POST /api/endpoints
                 ↓
          Verify authentication (JWT)
@@ -81,9 +88,11 @@ User Dashboard → POST /api/endpoints
          Return endpoint details
 ```
 
+
 ### 3. Receive Webhook Flow
 
 ```
+
 LINE Server → POST /api/webhook/{path}
              ↓
       Find endpoint by path (Postgres)
@@ -92,24 +101,25 @@ LINE Server → POST /api/webhook/{path}
              ↓
       ┌──────┴──────┐
       ↓             ↓
-  Store in KV   Store log ref in Postgres
-  (full data)   (metadata only)
+       Store in Postgres (full data)
       ↓             ↓
       └──────┬──────┘
              ↓
       Return 200 OK
 ```
 
+
 ### 4. View Logs Flow
 
 ```
+
 User Dashboard → GET /api/logs?endpointId=X
                 ↓
          Verify ownership (Postgres)
                 ↓
          Get log references (Postgres)
                 ↓
-         Fetch full data from KV
+         Fetch full data from Postgres
                 ↓
          Return combined data
 ```
@@ -128,6 +138,7 @@ User Dashboard → GET /api/logs?endpointId=X
 - Tailwind CSS for styling
 - Session persistence via cookies
 
+
 ### Backend (Serverless Functions)
 
 **API Routes:**
@@ -136,11 +147,11 @@ User Dashboard → GET /api/logs?endpointId=X
 |-------|--------|------|---------|
 | `/api/login` | POST | No | User login |
 | `/api/register` | POST | No | User registration |
-| `/api/logout` | POST | No | User logout |
+| `/api/logout` | POST | No | User logout (clears cookie) |
 | `/api/endpoints` | GET | Yes | List endpoints |
 | `/api/endpoints` | POST | Yes | Create endpoint |
 | `/api/endpoints` | DELETE | Yes | Delete endpoint |
-| `/api/webhook/[...path]` | ALL | No* | Receive webhooks |
+| `/api/webhook/[...path]` | POST | No* | Receive webhooks |
 | `/api/logs` | GET | Yes | Get webhook logs |
 
 *Authenticated via LINE signature verification
@@ -159,16 +170,17 @@ User Dashboard → GET /api/logs?endpointId=X
    - User ownership
 
 3. **webhook_logs** - Log metadata
-   - References to KV data
+       - Full payload stored in Postgres
    - Timestamps
    - Quick queries
 
-**KV (Redis) Storage:**
-- Full webhook request data
-- 7-day TTL
-- Key format: `webhook:{endpointId}:{randomId}`
+
+**Webhook Log Storage:**
+- Full webhook request data (JSONB in Postgres)
+
 
 ## Security Architecture
+
 
 ### Authentication Layer
 
@@ -198,7 +210,9 @@ Incoming Webhook → Extract LINE Signature
          Accept      Reject (401)
 ```
 
-## Performance Considerations
+
+## Performance & Scalability
+
 
 ### Serverless Cold Starts
 - First request may take 1-2s
@@ -212,22 +226,23 @@ Incoming Webhook → Extract LINE Signature
 
 ### Caching Strategy
 - Static frontend cached at CDN edge
-- KV (Redis) for fast webhook data retrieval
+- All log retrieval from Postgres
 - 7-day retention to manage storage costs
+
 
 ## Scalability
 
-### Current Limits (Free Tier)
+### Current Limits (Vercel Free Tier)
 - **Requests**: 100k/month serverless invocations
 - **Database**: 256MB Postgres, 10k rows
-- **KV**: 256MB, 100k requests/day
 - **Bandwidth**: 100GB/month
 
 ### Scaling Path
 1. Upgrade Vercel plan ($20/mo → unlimited requests)
 2. Upgrade Postgres storage ($20/mo → 512MB)
-3. Add Redis cache for frequently accessed data
+3. (No Redis/Upstash needed for logs)
 4. Implement webhook batching for high-volume endpoints
+
 
 ## Deployment Architecture
 
@@ -235,29 +250,31 @@ Incoming Webhook → Extract LINE Signature
 
 ```
 GitHub Repository
-      ↓
-   [Push commit]
-      ↓
-Vercel Auto-Deploy
-      ↓
-   Build Process
-   • npm install
-   • npm run build
-   • Deploy static files to CDN
-   • Deploy functions to edge
-      ↓
-   [Deployment Complete]
-      ↓
-   HTTPS Endpoint Live
+              ↓
+       [Push commit]
+              ↓
+       Vercel Auto-Deploy
+              ↓
+       Build Process
+       • npm install
+       • npm run build
+       • Deploy static files to CDN
+       • Deploy functions to edge
+              ↓
+       [Deployment Complete]
+              ↓
+       HTTPS Endpoint Live
 ```
 
-### Environment Separation
 
+### Environment Separation
 - **Production**: Main branch → vercel.app domain
 - **Preview**: Feature branches → preview-*.vercel.app
 - **Development**: Local → localhost:5173
 
+
 ## Monitoring & Observability
+
 
 ### Built-in Vercel Tools
 - Real-time function logs
@@ -270,12 +287,12 @@ Vercel Auto-Deploy
 - **Uptime Robot**: Availability monitoring
 - **Better Stack**: Log aggregation
 
+
 ## Cost Optimization
 
 ### Current Setup (Free)
 - Serverless functions: Free tier sufficient for most use
 - Postgres: Free 256MB (hundreds of thousands of webhooks)
-- KV: Free 256MB (7-day retention helps)
 
 ### When to Upgrade
 - 100k+ serverless invocations/month
@@ -283,8 +300,8 @@ Vercel Auto-Deploy
 - Need longer webhook retention
 - Multiple team members
 
-## Future Architecture Improvements
 
+## Future Architecture Improvements
 1. **Edge Caching**: Cache endpoint lookups at edge
 2. **Webhook Forwarding**: Real-time relay to other services
 3. **Batch Processing**: Queue webhooks for batch analysis

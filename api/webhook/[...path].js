@@ -1,4 +1,4 @@
-import { db, cache } from '../_utils/db.js';
+import { db } from '../_utils/db.js';
 import crypto from 'crypto';
 import { nanoid } from 'nanoid';
 
@@ -79,9 +79,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ message: 'Verification successful' });
     }
 
-    // Store webhook data
-    const logKey = `webhook:${endpoint.id}:${nanoid()}`;
-    
+    // Store webhook data directly in Postgres (payload column)
     const webhookData = {
       method: req.method,
       headers: req.headers,
@@ -90,9 +88,7 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     };
 
-    console.log('Saving webhook data with key:', logKey);
-    await cache.saveWebhookData(logKey, webhookData);
-    await db.saveWebhookLog(endpoint.id, req.method, logKey);
+    await db.saveWebhookLog(endpoint.id, req.method, webhookData);
 
     console.log('Webhook saved successfully');
     return res.status(200).json({ message: 'Webhook received' });

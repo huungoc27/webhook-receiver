@@ -1,41 +1,47 @@
-# Webhook Receiver - LINE Message API
 
-A serverless webhook receiver application built with Vue.js and Node.js, deployable on Vercel. Allows users to create webhook endpoints to receive and inspect LINE Message API webhooks.
+# Webhook Receiver for LINE Message API (2026)
+
+A modern, serverless webhook receiver built with Vue 3 and Node.js, designed for Vercel. Enables users to create secure, custom webhook endpoints to receive and inspect LINE Message API webhooks with full request storage and inspection.
+
 
 ## Features
 
-- ✅ **Session-based Authentication** (JWT + httpOnly cookies)
-- ✅ **Dynamic Webhook Endpoints** - Create custom webhook paths
-- ✅ **LINE Message API Verification** - Validates webhook signatures
-- ✅ **Request Storage** - Stores all incoming webhook requests
-- ✅ **Request Inspection** - View detailed headers, body, and metadata
-- ✅ **Copy to Postman** - Export requests for testing
-- ✅ **Fully Serverless** - Runs on Vercel Edge Functions
-- ✅ **Responsive UI** - Built with Vue 3 + Tailwind CSS
+- **Session-based Authentication** (JWT + httpOnly cookies)
+- **Dynamic Webhook Endpoints** (custom paths per user)
+- **LINE Message API Signature Verification**
+- **Request Storage** (Postgres + Vercel KV [Redis.io/Upstash])
+- **Request Inspection** (headers, body, metadata)
+- **Copy to Postman** (export requests)
+- **Fully Serverless** (Vercel Edge Functions)
+- **Responsive UI** (Vue 3 + Tailwind CSS)
+
 
 ## Tech Stack
 
-### Frontend
+**Frontend:**
 - Vue 3 (Composition API)
 - Vue Router
 - Axios
 - Tailwind CSS
 - Vite
 
-### Backend
-- Node.js Serverless Functions (Vercel)
+**Backend:**
+- Node.js (Vercel Serverless Functions)
 - Vercel Postgres (database)
-- Vercel KV (Redis for webhook logs)
+- Vercel KV (Redis.io/Upstash for webhook logs)
 - JWT authentication
 - bcrypt (password hashing)
+
 
 ## Prerequisites
 
 - Node.js 18+ and npm
-- Vercel account (free tier works)
-- LINE Messaging API Channel (get from LINE Developers Console)
+- Vercel account (free tier)
+- LINE Messaging API Channel (from LINE Developers Console)
+
 
 ## Local Development
+
 
 ### 1. Clone and Install
 
@@ -45,6 +51,7 @@ cd webhook-app
 npm install
 ```
 
+
 ### 2. Set up Vercel CLI
 
 ```bash
@@ -53,7 +60,8 @@ vercel login
 vercel link
 ```
 
-### 3. Set up Vercel Postgres
+
+### 3. Set up Vercel Postgres (Database)
 
 ```bash
 vercel postgres create
@@ -65,17 +73,12 @@ Follow the prompts to create a database. Then pull the environment variables:
 vercel env pull .env.local
 ```
 
-### 4. Set up Vercel KV (Redis)
 
-```bash
-vercel kv create
-```
 
-Again, pull the new environment variables:
+### 4. (No longer needed) Set up Vercel KV (Redis.io/Upstash)
 
-```bash
-vercel env pull .env.local
-```
+> **Note:** Webhook logs are now stored in Postgres. No Redis/KV setup is required for logs.
+
 
 ### 5. Add JWT Secret
 
@@ -84,6 +87,7 @@ Add to your `.env.local`:
 ```
 JWT_SECRET=your-super-secret-key-here
 ```
+
 
 ### 6. Initialize Database Schema
 
@@ -95,6 +99,7 @@ vercel postgres sql -- "$(cat schema.sql)"
 
 Or manually run the SQL from `schema.sql` in your Vercel Postgres dashboard.
 
+
 ### 7. Run Development Server
 
 ```bash
@@ -103,7 +108,9 @@ npm run dev
 
 Visit `http://localhost:5173`
 
+
 ## Deployment to Vercel
+
 
 ### Option 1: Deploy via CLI
 
@@ -111,20 +118,24 @@ Visit `http://localhost:5173`
 vercel --prod
 ```
 
+
 ### Option 2: Deploy via GitHub
 
 1. Push your code to GitHub
 2. Import project in Vercel dashboard
+
 3. Add environment variables in Vercel:
-   - `JWT_SECRET` - Your secret key
-   - Postgres and KV variables are auto-set
+    - `JWT_SECRET` - Your secret key
+    - Postgres and KV (Redis.io/Upstash) variables are auto-set
 4. Deploy!
+
 
 ### Post-Deployment
 
 1. Go to Vercel Dashboard → Storage → Postgres
 2. Run the SQL from `schema.sql` to create tables
 3. Test the app at your Vercel URL
+
 
 ## Usage
 
@@ -133,12 +144,14 @@ vercel --prod
 - Visit your deployed URL
 - Create an account or login
 
+
 ### 2. Create Webhook Endpoint
 
 - Enter your LINE Channel Secret (from LINE Developers Console)
-- Add optional description
+- Optionally add a description
 - Click "Create Endpoint"
 - Copy the generated webhook URL
+
 
 ### 3. Configure LINE Bot
 
@@ -147,29 +160,36 @@ vercel --prod
 - Set the webhook URL to your generated endpoint
 - Enable "Use webhook"
 
+
 ### 4. Receive Webhooks
 
 - When users interact with your LINE bot, requests appear in "View Logs"
 - Click "View Details" to inspect full request
 - Click "Copy for Postman" to get formatted request for testing
 
+
 ## API Endpoints
+
 
 ### Authentication
 - `POST /api/login` - Login
 - `POST /api/register` - Register new user
-- `POST /api/logout` - Logout
+- `POST /api/logout` - Logout (clears session cookie)
+
 
 ### Webhook Management
 - `GET /api/endpoints` - List user's endpoints
 - `POST /api/endpoints` - Create new endpoint
 - `DELETE /api/endpoints` - Delete endpoint
 
+
 ### Webhook Receiver
 - `POST /api/webhook/:path` - Receive webhooks (LINE signature verified)
 
+
 ### Logs
 - `GET /api/logs?endpointId=:id` - Get webhook logs
+
 
 ## Environment Variables
 
@@ -178,8 +198,9 @@ Required in production:
 ```env
 JWT_SECRET=your-secret-key
 POSTGRES_URL=<auto-set-by-vercel>
-KV_URL=<auto-set-by-vercel>
+KV_URL=<auto-set-by-vercel> # (Vercel KV/Redis.io/Upstash)
 ```
+
 
 ## Security Considerations
 
@@ -188,6 +209,7 @@ KV_URL=<auto-set-by-vercel>
 3. **httpOnly Cookies** - Prevents XSS attacks
 4. **LINE Signature Verification** - Validates webhook authenticity
 5. **User Isolation** - Users can only access their own endpoints
+
 
 ## Database Schema
 
@@ -225,9 +247,11 @@ CREATE TABLE webhook_logs (
 );
 ```
 
-Full request data stored in Vercel KV with 7-day expiry.
 
-## Troubleshooting
+Full request data stored in Vercel KV (Redis.io/Upstash) with 7-day expiry (auto-expiry).
+
+
+## Troubleshooting & Tips
 
 ### "Authentication failed"
 - Make sure cookies are enabled
@@ -246,26 +270,27 @@ Full request data stored in Vercel KV with 7-day expiry.
 - Check "Use webhook" is enabled in LINE Console
 - Test with LINE's webhook tester
 
+
 ## Limitations
 
-- Webhook logs expire after 7 days (Vercel KV retention)
-- Free tier limits apply (Postgres, KV, bandwidth)
+- Webhook logs expire after 7 days (Vercel KV/Redis.io/Upstash retention)
+- Free tier limits apply (Postgres, Vercel KV/Redis.io/Upstash, bandwidth)
 - Currently only supports LINE Message API webhooks
 
-## Future Enhancements
 
+## Future Enhancements
 - [ ] Support multiple webhook providers (Slack, Discord, etc.)
 - [ ] Webhook forwarding/relay
 - [ ] Custom webhook transformations
 - [ ] Email notifications on webhook receipt
 - [ ] Advanced filtering and search
 
-## License
 
+## License
 MIT
 
-## Support
 
+## Support
 For issues or questions:
 - Check Vercel documentation
 - Review LINE Messaging API docs

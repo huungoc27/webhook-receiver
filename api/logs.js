@@ -1,4 +1,4 @@
-import { db, cache } from './_utils/db.js';
+import { db } from './_utils/db.js';
 import { authenticate } from './_utils/middleware.js';
 
 const handler = async (req, res) => {
@@ -21,22 +21,15 @@ const handler = async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Get logs
+    // Get logs (with payload)
     const logs = await db.getWebhookLogs(endpointId, 50);
-
-    // Fetch full data from cache
-    const logsWithData = await Promise.all(
-      logs.map(async (log) => {
-        const data = await cache.getWebhookData(log.log_key);
-        return {
-          id: log.id,
-          method: log.method,
-          received_at: log.received_at,
-          data: data || null
-        };
-      })
-    );
-
+    // Return logs with payload as 'data'
+    const logsWithData = logs.map(log => ({
+      id: log.id,
+      method: log.method,
+      received_at: log.received_at,
+      data: log.payload || null
+    }));
     return res.status(200).json({ logs: logsWithData });
   } catch (error) {
     console.error('Get logs error:', error);

@@ -1,15 +1,19 @@
-# Vercel Deployment Guide - Step by Step
+
+# Vercel Deployment Guide (2026)
 
 This guide walks you through deploying the Webhook Receiver app to Vercel.
 
+
 ## Prerequisites Checklist
 
-- [ ] GitHub account
-- [ ] Vercel account (sign up at vercel.com)
-- [ ] LINE Developers account (for LINE Channel Secret)
-- [ ] Git installed on your computer
+- GitHub account
+- Vercel account (https://vercel.com)
+- LINE Developers account (for Channel Secret)
+- Node.js 18+ and npm
+- Git installed
 
 ## Step 1: Prepare Your Code
+
 
 ### 1.1 Initialize Git Repository
 
@@ -50,6 +54,7 @@ git push -u origin main
 2. Select your GitHub repository "webhook-receiver"
 3. Click "Import"
 
+
 ### 2.3 Configure Project
 
 - **Framework Preset**: Vite
@@ -57,17 +62,18 @@ git push -u origin main
 - **Build Command**: `npm run build`
 - **Output Directory**: `dist`
 
-**Don't deploy yet!** Click "Environment Variables" first.
+**Before deploying:** Set up environment variables as below.
 
 ## Step 3: Set Up Environment Variables
 
-### 3.1 Add JWT Secret
+
+### 3.1 Add Environment Variables
 
 1. In the import screen, expand "Environment Variables"
-2. Add variable:
-   - **Name**: `JWT_SECRET`
-   - **Value**: Generate a random string (e.g., use: `openssl rand -base64 32`)
-   - **Environment**: Production, Preview, Development (check all)
+2. Add:
+  - **JWT_SECRET**: Strong random string (e.g., `openssl rand -base64 32`)
+  - **POSTGRES_URL**: (auto-set by Vercel Postgres)
+  - Set for Production, Preview, Development
 
 ## Step 4: Deploy
 
@@ -76,7 +82,8 @@ git push -u origin main
 3. You'll see "Congratulations!" when done
 4. Note your deployment URL (e.g., `webhook-receiver.vercel.app`)
 
-## Step 5: Set Up Vercel Postgres
+
+## Step 5: Set Up Vercel Postgres (Database)
 
 ### 5.1 Create Database
 
@@ -109,31 +116,22 @@ vercel link
 vercel postgres sql -- "$(cat schema.sql)"
 ```
 
-## Step 6: Set Up Vercel KV (Redis)
 
-### 6.1 Create KV Store
 
-1. In your project, go to "Storage" tab
-2. Click "Create Database"
-3. Select "KV" (Redis)
-4. Name it "webhook-logs"
-5. Choose your region
-6. Click "Create"
+## Step 6: (No longer needed) Set Up Vercel KV (Redis)
 
-### 6.2 Connect KV to Project
+> **Note:** Webhook logs are now stored in Postgres. No Redis/KV setup is required for logs.
 
-1. Click "Connect Project"
-2. Select environments (Production + Development)
-3. Click "Connect"
 
 ## Step 7: Redeploy
 
-After adding Postgres and KV:
+After adding Postgres:
 
 1. Go to "Deployments" tab
 2. Click "..." on latest deployment
 3. Click "Redeploy"
 4. Wait for redeployment to complete
+
 
 ## Step 8: Test Your Application
 
@@ -148,13 +146,16 @@ After adding Postgres and KV:
 2. Create username and password
 3. You should be redirected to dashboard
 
+
 ### 8.3 Create Webhook Endpoint
 
 1. In dashboard, enter your LINE Channel Secret
-   - Get this from [LINE Developers Console](https://developers.line.biz/console/)
-   - Go to your channel → Messaging API → Channel secret
-2. Click "Create Endpoint"
-3. Copy the generated webhook URL
+  - Get this from [LINE Developers Console](https://developers.line.biz/console/)
+  - Go to your channel → Messaging API → Channel secret
+2. Optionally add a description
+3. Click "Create Endpoint"
+4. Copy the generated webhook URL
+
 
 ### 8.4 Configure LINE Bot
 
@@ -188,7 +189,8 @@ SELECT * FROM webhook_endpoints;
 SELECT * FROM webhook_logs;
 ```
 
-## Troubleshooting
+
+## Troubleshooting & Tips
 
 ### Issue: "Internal Server Error"
 
@@ -213,6 +215,7 @@ Look for error messages about missing environment variables.
 2. Check webhook is coming from LINE (not browser)
 3. Test with LINE's webhook testing tool
 
+
 ### Issue: "Session/Cookie not working"
 
 **Solution**:
@@ -222,7 +225,8 @@ Look for error messages about missing environment variables.
 
 ## Performance Optimization
 
-### Enable Edge Functions (Optional)
+
+### Enable Edge Functions (Recommended)
 
 Add to `vercel.json`:
 ```json
@@ -239,14 +243,15 @@ Add to `vercel.json`:
 
 Vercel Postgres automatically uses connection pooling via `POSTGRES_PRISMA_URL`.
 
-## Cost Estimation (Free Tier)
+
+## Cost Estimation (Vercel Free Tier)
 
 - **Vercel Hosting**: Free
 - **Postgres**: Free for 256MB (upgrade at $20/month for 512MB)
-- **KV Redis**: Free for 256MB, 100k requests/day
 - **Bandwidth**: 100GB/month free
 
 You can monitor usage in Vercel Dashboard → Usage tab.
+
 
 ## Going to Production
 
@@ -256,13 +261,13 @@ You can monitor usage in Vercel Dashboard → Usage tab.
 2. Add your custom domain
 3. Follow DNS configuration steps
 
-### Security Checklist
 
-- [ ] Change JWT_SECRET to strong random value
-- [ ] Enable 2FA on Vercel account
-- [ ] Set up monitoring/alerts
-- [ ] Review and limit API rate limits if needed
-- [ ] Keep dependencies updated
+### Security Checklist
+- Change JWT_SECRET to strong random value
+- Enable 2FA on Vercel account
+- Set up monitoring/alerts
+- Review and limit API rate limits if needed
+- Keep dependencies updated
 
 ### Monitoring
 
@@ -270,6 +275,7 @@ Set up monitoring:
 1. Vercel Analytics (built-in)
 2. Error tracking (Sentry, etc.)
 3. Uptime monitoring (UptimeRobot, etc.)
+
 
 ## Updating Your App
 
@@ -289,12 +295,13 @@ Vercel automatically deploys when you push to GitHub!
 2. Find previous working deployment
 3. Click "..." → "Promote to Production"
 
+
 ## Support Resources
 
 - [Vercel Documentation](https://vercel.com/docs)
 - [Vercel Postgres Docs](https://vercel.com/docs/storage/vercel-postgres)
-- [Vercel KV Docs](https://vercel.com/docs/storage/vercel-kv)
 - [LINE Messaging API Docs](https://developers.line.biz/en/docs/messaging-api/)
+
 
 ## Next Steps
 

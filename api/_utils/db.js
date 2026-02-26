@@ -1,7 +1,7 @@
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import Redis from 'ioredis';
+
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -62,11 +62,11 @@ export const db = {
     `;
   },
 
-  // Webhook log functions
-  async saveWebhookLog(endpointId, method, logKey) {
+  // Webhook log functions (Postgres only, with payload)
+  async saveWebhookLog(endpointId, method, payload) {
     const result = await sql`
-      INSERT INTO webhook_logs (endpoint_id, method, log_key)
-      VALUES (${endpointId}, ${method}, ${logKey})
+      INSERT INTO webhook_logs (endpoint_id, method, payload)
+      VALUES (${endpointId}, ${method}, ${payload})
       RETURNING *
     `;
     return result.rows[0];
@@ -74,7 +74,8 @@ export const db = {
 
   async getWebhookLogs(endpointId, limit = 50) {
     const result = await sql`
-      SELECT * FROM webhook_logs
+      SELECT id, method, received_at, payload
+      FROM webhook_logs
       WHERE endpoint_id = ${endpointId}
       ORDER BY received_at DESC
       LIMIT ${limit}
@@ -83,26 +84,8 @@ export const db = {
   }
 };
 
-const redis = process.env.REDIS_URL 
-  ? new Redis(process.env.REDIS_URL, {
-      maxRetriesPerRequest: 3,
-      enableReadyCheck: false,
-      family: 0, // Use IPv4 and IPv6
-    })
-  : null;
 
-export const cache = {
-  async saveWebhookData(key, data) {
-    if (!redis) throw new Error('Redis not configured');
-    await redis.set(key, JSON.stringify(data), 'EX', 60 * 60 * 24 * 7); // 7 days
-  },
-
-  async getWebhookData(key) {
-    if (!redis) throw new Error('Redis not configured');
-    const data = await redis.get(key);
-    return data ? JSON.parse(data) : null;
-  }
-};
+// Redis/KV cache removed. All log storage is now in Postgres.
 
 export const auth = {
   generateToken(user) {
