@@ -29,9 +29,19 @@ function verifyLineSignature(channelSecret, signature, rawBody) {
 
 // Build Postman collection from a webhook log entry
 export function buildPostmanCollection(log) {
+  // Stored structure: log.data (from logs.js) or log.payload (raw from db)
   const payload = log.data || log.payload;
   const headers = payload?.headers || {};
   const allowedHeaders = ['content-type', 'user-agent', 'x-line-signature', 'accept'];
+
+  // Strip query string from url (e.g. ?...path=X9eLWIpGVd)
+  const rawUrl = (payload?.url || '').split('?')[0];
+  const withoutProtocol = rawUrl.replace('https://', '').replace('http://', '');
+  const hostPart = withoutProtocol.split('/')[0];
+  const pathParts = withoutProtocol.split('/').slice(1).filter(Boolean);
+
+  // Use rawBody for valid signature replay, fallback to re-serialized body
+  const bodyRaw = payload?.rawBody || JSON.stringify(payload?.body ?? {}, null, 2);
 
   return {
     info: {
@@ -45,17 +55,16 @@ export function buildPostmanCollection(log) {
           method: payload?.method || 'POST',
           header: Object.entries(headers)
             .filter(([key]) => allowedHeaders.includes(key.toLowerCase()))
-            .map(([key, value]) => ({ key, value })),
+            .map(([key, value]) => ({ key, value: String(value) })),
           url: {
-            raw: payload?.url || '',
+            raw: rawUrl,
             protocol: 'https',
-            host: (payload?.url || '').replace('https://', '').split('/')[0].split('.'),
-            path: (payload?.url || '').replace('https://', '').split('/').slice(1),
+            host: hostPart.split('.'),
+            path: pathParts,
           },
           body: {
             mode: 'raw',
-            // Use rawBody if stored, otherwise re-serialize body (signature may not match)
-            raw: payload?.rawBody || JSON.stringify(payload?.body, null, 2),
+            raw: bodyRaw,
             options: {
               raw: { language: 'json' },
             },
