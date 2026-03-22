@@ -1,5 +1,6 @@
 import { db } from './_utils/db.js';
 import { authenticate } from './_utils/middleware.js';
+import { buildPostmanCollection } from './webhook/[...path].js';
 
 const handler = async (req, res) => {
   if (req.method !== 'GET') {
@@ -23,13 +24,20 @@ const handler = async (req, res) => {
 
     // Get logs (with payload)
     const logs = await db.getWebhookLogs(endpointId, 50);
-    // Return logs with payload as 'data'
+
+    // Return logs with payload as 'data' + postman collection for each log
     const logsWithData = logs.map(log => ({
       id: log.id,
       method: log.method,
       received_at: log.received_at,
-      data: log.payload || null
+      data: log.payload || null,
+      postman: buildPostmanCollection({
+        id: log.id,
+        received_at: log.received_at,
+        data: log.payload || null,
+      }),
     }));
+
     return res.status(200).json({ logs: logsWithData });
   } catch (error) {
     console.error('Get logs error:', error);

@@ -1,22 +1,76 @@
 import { db } from '../_utils/db.js';
 import crypto from 'crypto';
-import { nanoid } from 'nanoid';
 
-// Verify LINE signature
-function verifyLineSignature(channelSecret, signature, body) {
+// Disable Next.js body parser to get raw body for signature verification
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+// Read raw body buffer from request
+async function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+// Verify LINE signature using raw body string
+function verifyLineSignature(channelSecret, signature, rawBody) {
   const hash = crypto
     .createHmac('sha256', channelSecret)
-    .update(body)
+    .update(rawBody)
     .digest('base64');
   return signature === hash;
+}
+
+// Build Postman collection from a webhook log entry
+export function buildPostmanCollection(log) {
+  const payload = log.data || log.payload;
+  const headers = payload?.headers || {};
+  const allowedHeaders = ['content-type', 'user-agent', 'x-line-signature', 'accept'];
+
+  return {
+    info: {
+      name: `Webhook Log #${log.id}`,
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+    },
+    item: [
+      {
+        name: `${payload?.method || 'POST'} - ${new Date(log.received_at).toLocaleString()}`,
+        request: {
+          method: payload?.method || 'POST',
+          header: Object.entries(headers)
+            .filter(([key]) => allowedHeaders.includes(key.toLowerCase()))
+            .map(([key, value]) => ({ key, value })),
+          url: {
+            raw: payload?.url || '',
+            protocol: 'https',
+            host: (payload?.url || '').replace('https://', '').split('/')[0].split('.'),
+            path: (payload?.url || '').replace('https://', '').split('/').slice(1),
+          },
+          body: {
+            mode: 'raw',
+            // Use rawBody if stored, otherwise re-serialize body (signature may not match)
+            raw: payload?.rawBody || JSON.stringify(payload?.body, null, 2),
+            options: {
+              raw: { language: 'json' },
+            },
+          },
+        },
+      },
+    ],
+  };
 }
 
 export default async function handler(req, res) {
   console.log('=== Webhook Request ===');
   console.log('Query params:', req.query);
   console.log('Headers:', req.headers);
-  
-  // Vercel passes the catch-all param as '...path' (literal dots in key name)
+
   const path = req.query['...path'] || req.query.path;
 
   if (!path || (Array.isArray(path) && path.length === 0)) {
@@ -27,65 +81,70 @@ export default async function handler(req, res) {
   const webhookPath = Array.isArray(path) ? path.join('/') : path;
   console.log('Looking for webhook path:', webhookPath);
 
+  // Read raw body BEFORE any parsing
+  const rawBodyBuffer = await getRawBody(req);
+  const rawBodyString = rawBodyBuffer.toString('utf8');
+
+  let body;
   try {
-    // Find endpoint
-    console.log('Querying database for path:', webhookPath);
+    body = JSON.parse(rawBodyString);
+  } catch (e) {
+    console.error('Failed to parse body as JSON:', e);
+    return res.status(400).json({ error: 'Invalid JSON body' });
+  }
+
+  console.log('Raw body string:', rawBodyString);
+
+  try {
     const endpoint = await db.getEndpointByPath(webhookPath);
     console.log('Database result:', endpoint);
 
     if (!endpoint) {
       console.error('Endpoint not found for path:', webhookPath);
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'Webhook endpoint not found',
         path: webhookPath,
-        debug: 'Check if path exists in webhook_endpoints table'
       });
     }
 
     console.log('Found endpoint:', endpoint.id);
 
-    // Get LINE signature
     const signature = req.headers['x-line-signature'];
-    
+
     if (!signature) {
       console.error('Missing LINE signature header');
       return res.status(400).json({ error: 'Missing LINE signature' });
     }
 
-    // Get raw body as string for signature verification
-    const bodyString = JSON.stringify(req.body);
-    console.log('Body for signature:', bodyString);
-    
-    // Verify LINE signature
+    // ✅ Verify using the TRUE raw body string (not re-serialized)
     const isValid = verifyLineSignature(
       endpoint.line_channel_secret,
       signature,
-      bodyString
+      rawBodyString
     );
 
     if (!isValid) {
-      console.error('Invalid signature. Expected vs received:', {
-        body: bodyString,
-        signature: signature
-      });
+      console.error('Invalid signature:', { rawBodyString, signature });
       return res.status(401).json({ error: 'Invalid LINE signature' });
     }
 
     console.log('Signature verified successfully');
 
     // Handle LINE webhook verification (empty events array)
-    if (req.body && req.body.events && req.body.events.length === 0) {
+    if (body.events && body.events.length === 0) {
       console.log('LINE verification request received for:', webhookPath);
       return res.status(200).json({ message: 'Verification successful' });
     }
 
-    // Store webhook data directly in Postgres (payload column)
+    // ✅ Store rawBody so Postman export can replay with valid signature
     const webhookData = {
       method: req.method,
+      url: `https://${req.headers.host}${req.url}`,
       headers: req.headers,
-      body: req.body,
+      body: body,
+      rawBody: rawBodyString, // original string for Postman export
       query: req.query,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     await db.saveWebhookLog(endpoint.id, req.method, webhookData);
@@ -95,15 +154,9 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Webhook error details:', error);
     console.error('Error stack:', error.stack);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Internal server error',
-      message: error.message 
+      message: error.message,
     });
   }
 }
-
-export const config = {
-  api: {
-    bodyParser: true
-  }
-};
